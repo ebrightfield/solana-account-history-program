@@ -15,9 +15,6 @@ pub struct Crank<'info> {
     )]
     oracle_history: AccountLoader<'info, OracleHistory>,
     /// CHECK: The oracle's exact data type depends on oracle_history.oracle_type.
-    #[account(
-        address=oracle_history.load()?.associated_oracle()
-    )]
     oracle: UncheckedAccount<'info>,
 }
 

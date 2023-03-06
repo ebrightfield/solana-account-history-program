@@ -23,7 +23,7 @@ pub struct Price {
 
 /// Determines how to deserialize the associated oracle account
 /// when indexing.
-#[derive(Copy, Clone, Debug, Default, PartialEq)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, AnchorSerialize, AnchorDeserialize)]
 #[repr(C)]
 pub enum OracleType {
     #[default]
@@ -37,7 +37,7 @@ pub enum OracleType {
 #[repr(C)]
 pub struct OracleHistory {
     pub(crate) associated_oracle: Pubkey,
-    oracle_type: OracleType,
+    pub(crate) oracle_type: OracleType,
     _padding0: [u8; 5],
     prices: StackVecModulo<Price, ORACLE_HISTORY_SIZE>,
 }
@@ -128,6 +128,22 @@ mod tests {
         state.associated_oracle = ORACLE_ACCOUNT;
         let _ = state.get_price(
             Pubkey::default(),
+            &data
+        ).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn get_price_not_new_slot() {
+        let data = base64::engine::general_purpose::STANDARD.decode(ORACLE_DATA.trim_end()).unwrap();
+        let mut state = OracleHistory::default();
+        state.associated_oracle = ORACLE_ACCOUNT;
+        state.push(
+            ORACLE_ACCOUNT,
+            &data
+        ).unwrap();
+        state.push(
+            ORACLE_ACCOUNT,
             &data
         ).unwrap();
     }

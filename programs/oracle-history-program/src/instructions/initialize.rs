@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use crate::state::OracleHistory;
+use crate::state::{OracleHistory, OracleType};
 
 
 #[derive(Accounts)]
@@ -18,17 +18,15 @@ pub struct InitializeOracleHistory<'info> {
         bump,
     )]
     oracle_history: AccountLoader<'info, OracleHistory>,
-    /// CHECK: The oracle's exact data type depends on oracle_history.oracle_type.
-    #[account(
-        address=oracle_history.load()?.associated_oracle()
-    )]
+    /// CHECK: The oracle's expected type depends on `oracle_history.oracle_type`.
     oracle: UncheckedAccount<'info>,
     system_program: Program<'info, System>,
 }
 
 impl<'info> InitializeOracleHistory<'info> {
-    pub fn process(&mut self) -> Result<()> {
+    pub fn process(&mut self, oracle_type: OracleType) -> Result<()> {
         let mut oracle_history = self.oracle_history.load_mut()?;
+        oracle_history.oracle_type = oracle_type;
         oracle_history.associated_oracle = self.oracle.key();
         oracle_history.push(
             *self.oracle.key,
