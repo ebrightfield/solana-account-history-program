@@ -18,3 +18,7 @@ default = []
 [dependencies]
 anchor-lang = "0.26.0"
 pyth-sdk-solana = "0.7.0"
+
+[dev-dependencies]
+solana-program = "1.14.16"
+base64 = "0.21.0"

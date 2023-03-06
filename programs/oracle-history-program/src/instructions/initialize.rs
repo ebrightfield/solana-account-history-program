@@ -4,8 +4,10 @@ use crate::state::OracleHistory;
 
 #[derive(Accounts)]
 pub struct InitializeOracleHistory<'info> {
+    /// Funds rent for the new oracle account.
     #[account(mut)]
     payer: Signer<'info>,
+    /// The oracle history account being created.
     #[account(
         init,
         payer=payer,
@@ -26,7 +28,9 @@ pub struct InitializeOracleHistory<'info> {
 
 impl<'info> InitializeOracleHistory<'info> {
     pub fn process(&mut self) -> Result<()> {
-        self.oracle_history.load_mut()?.push(
+        let mut oracle_history = self.oracle_history.load_mut()?;
+        oracle_history.associated_oracle = self.oracle.key();
+        oracle_history.push(
             *self.oracle.key,
             &self.oracle.data.borrow()
         )?;
