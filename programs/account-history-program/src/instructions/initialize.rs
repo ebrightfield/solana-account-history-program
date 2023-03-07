@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 use crate::errors::AccountHistoryProgramError;
-use crate::state::{AccountHistory, IntoBytes};
+use crate::state::AccountHistory;
 
 /// Create a new historical data account, configured
 /// to watch a certain account.
@@ -10,16 +10,14 @@ pub struct InitializeAccountHistory<'info> {
     /// Funds rent for the new oracle account.
     #[account(mut)]
     payer: Signer<'info>,
+    /// Signer and entropy seed for the account state history.
+    seed: Signer<'info>,
     /// CHECK: The history account being created.
     #[account(
         init,
         payer=payer,
         space=AccountHistory::size_of(capacity, &data_regions),
-        seeds=[
-            watched_account.key().as_ref(),
-            capacity.to_le_bytes().as_ref(),
-            data_regions.into_bytes().as_ref(),
-        ],
+        seeds=[seed.key().as_ref()],
         bump,
     )]
     account_state_history: UncheckedAccount<'info>,
@@ -50,21 +48,13 @@ impl<'info> InitializeAccountHistory<'info> {
     }
 }
 
+/// Ensure the data regions are non-zero in length,
 pub fn sanitize_data_regions(pairs: &[(u32, u32)]) -> Result<[u32; 16]> {
     let mut loc = [0u32; 16];
-    let mut index_so_far = 0u32;
     for (i, pair) in pairs.iter().enumerate() {
-        // No zero-length regions
         if pair.1 == 0 {
             return err!(AccountHistoryProgramError::InvalidDataRegions);
         }
-        // We should always be ascending index values, and it should not be contiguous, so `>=`.
-        // The case where both values are zero is a special initial case.
-        if (pair.0 != 0 || index_so_far != 0) &&
-            index_so_far >= pair.0 {
-            return err!(AccountHistoryProgramError::InvalidDataRegions);
-        }
-        index_so_far = pair.0 + pair.1;
         loc[i] = pair.0;
         loc[i+1] = pair.1;
     }

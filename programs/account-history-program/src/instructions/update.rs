@@ -8,7 +8,7 @@ use crate::state::AccountHistory;
 pub struct Update<'info> {
     /// Signer performing the update
     signer: Signer<'info>,
-    /// The history account being updated
+    /// CHECK: The history account being updated
     #[account(mut)]
     account_state_history: UncheckedAccount<'info>,
     /// CHECK: The account's data type is not read by this program
@@ -19,6 +19,9 @@ impl<'info> Update<'info> {
     pub fn process(&mut self) -> Result<()> {
         let mut data = self.account_state_history.data.borrow_mut();
         let mut oracle_history = AccountHistory::from_buffer(&mut data)?;
+        if self.watched_account.key() != oracle_history.header.associated_account {
+            return err!(AccountHistoryProgramError::NotCorrectAccount);
+        }
         if oracle_history.header.update_authority != Pubkey::default()
             && oracle_history.header.update_authority != self.signer.key() {
             return err!(AccountHistoryProgramError::NotUpdateAuthority);

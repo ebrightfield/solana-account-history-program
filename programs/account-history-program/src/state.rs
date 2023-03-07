@@ -6,12 +6,15 @@ use std::mem;
 use std::num::NonZeroU64;
 use std::ops::Index;
 
+pub const ACCOUNT_HISTORY_TAG: u64 = 0;
+
 /// Contains metadata like the account's capacity, element size,
 /// number of updates, and locations of the account data being
 /// recorded.
-#[derive(Default, Debug, Clone, Copy, Pod, Zeroable)]
+#[derive(Debug, Clone, Copy, Pod, Zeroable)]
 #[repr(C)]
 pub struct AccountHistoryHeader {
+    account_tag: u64,
     /// The target account. Only historical data from this account will be indexed.
     pub(crate) associated_account: Pubkey,
     /// Only this account can close the history account and reclaim its rent lamports.
@@ -31,14 +34,33 @@ pub struct AccountHistoryHeader {
     pub(crate) min_close_delay: u32,
     /// Zero when uninitialized. Slot number of when the history account
     /// close process was started.
-    close_initiated: Option<NonZeroU64>,
+    pub(crate) close_initiated: Option<NonZeroU64>,
     /// Collection of byte offsets and ranges from which to collect
     /// account state.
     /// Paired values, in the form of (offset, range). For example,
     /// (0,8) signifies the first 8 bytes. (48, 16) signifies
     /// a 16 byte span starting at the 48th byte.
-    /// Maximum of 8 pairs.
+    /// Maximum of 8 pairs of (offset, range), and they must
+    /// be non-zero in length
     pub(crate) data_regions: [u32; 16],
+}
+
+impl Default for AccountHistoryHeader {
+    fn default() -> Self {
+        Self {
+            account_tag: ACCOUNT_HISTORY_TAG,
+            associated_account: Default::default(),
+            close_authority: Default::default(),
+            update_authority: Default::default(),
+            capacity: 0,
+            data_element_size: 0,
+            num_updates: 0,
+            min_slot_delay: 0,
+            min_close_delay: 0,
+            close_initiated: None,
+            data_regions: [0; 16],
+        }
+    }
 }
 
 /// Data account, stores a data and a header.
@@ -52,17 +74,11 @@ pub struct AccountHistory<'data> {
 }
 
 impl<'data> AccountHistory<'data> {
-    /// Find the address associated with a given account and configuration.
-    pub fn get_program_address(
-        associated_account: Pubkey,
-        capacity: u32,
-        data_locations: &Vec<(u32, u32)>,
-    ) -> (Pubkey, u8) {
+    /// PDA generation just takes a random 32-byte seed.
+    pub fn get_program_address(seed: [u8; 32]) -> (Pubkey, u8) {
         Pubkey::find_program_address(
             &[
-                associated_account.as_ref(),
-                capacity.to_le_bytes().as_ref(),
-                data_locations.into_bytes().as_ref(),
+                seed.as_ref(),
             ],
             &crate::ID,
         )
@@ -98,6 +114,13 @@ impl<'data> AccountHistory<'data> {
     }
 
     /// The intended way to add a new element to this struct.
+    /// Takes the current slot, and a reference to the account's data.
+    ///
+    /// Concatenates all the data regions being copied, prepends the slot value passed,
+    /// and indexes the new data, replacing either an uninitialized or oldest value.
+    ///
+    /// You cannot add a value when this struct is being closed.
+    /// This function also performs a minimum delay check on the passed slot number.
     pub fn push(&mut self, data: &[u8], slot: Slot) -> Result<()> {
         if self.header.close_initiated != None {
             return err!(AccountHistoryProgramError::AccountBeingClosed);
@@ -115,10 +138,9 @@ impl<'data> AccountHistory<'data> {
         let mut new_data = slot.to_le_bytes().to_vec();
         self.header
             .data_regions
-            .iter()
-            .array_chunks()
-            .for_each(|[offset, len]| {
-                new_data.extend_from_slice(&data[*offset as usize..(*offset + *len) as usize]);
+            .chunks(2)
+            .for_each(|val| {
+                new_data.extend_from_slice(&data[val[0] as usize..(val[0] + val[1]) as usize]);
             });
         buf.copy_from_slice(&new_data);
         // Increment the counter that keeps track of indexing
@@ -197,29 +219,6 @@ impl<'data> From<&'data AccountHistory<'data>> for AccountHistoryIterator<'data>
     }
 }
 
-/// Convenience for converting values to PDA seeds
-pub trait IntoBytes {
-    fn into_bytes(&self) -> Vec<u8>;
-}
-
-impl IntoBytes for (u32, u32) {
-    fn into_bytes(&self) -> Vec<u8> {
-        [self.0.to_le_bytes(), self.1.to_le_bytes()].concat()
-    }
-}
-
-impl IntoBytes for Vec<(u32, u32)> {
-    fn into_bytes(&self) -> Vec<u8> {
-        self.iter().map(|e| e.into_bytes()).flatten().collect()
-    }
-}
-
-impl IntoBytes for &Vec<(u32, u32)> {
-    fn into_bytes(&self) -> Vec<u8> {
-        self.iter().map(|e| e.into_bytes()).flatten().collect()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -238,8 +237,6 @@ mod tests {
             associated_account: key,
             capacity: CAPACITY as u32,
             data_element_size: ELEM_SIZE as u32,
-            num_updates: 0,
-            data_regions: [0; 16],
             ..Default::default()
         };
         header.data_regions[1] = 8;

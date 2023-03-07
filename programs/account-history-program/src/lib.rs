@@ -1,5 +1,3 @@
-#![feature(iter_array_chunks)]
-
 pub mod errors;
 pub mod instructions;
 pub mod state;
@@ -33,6 +31,16 @@ pub mod account_history_program {
     }
 
     pub fn update(ctx: Context<Update>) -> Result<()> {
+        ctx.accounts.process()?;
+        Ok(())
+    }
+
+    pub fn initialize_account_close(ctx: Context<InitializeAccountClose>) -> Result<()> {
+        ctx.accounts.process()?;
+        Ok(())
+    }
+
+    pub fn resolve_account_close(ctx: Context<ResolveAccountClose>) -> Result<()> {
         ctx.accounts.process()?;
         Ok(())
     }
