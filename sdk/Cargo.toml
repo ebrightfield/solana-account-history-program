@@ -1,0 +1,7 @@
+[package]
+name = "account-history-sdk"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+account-history-program = { path = "../programs/account-history-program" }
