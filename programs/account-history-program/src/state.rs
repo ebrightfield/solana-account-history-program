@@ -102,6 +102,14 @@ impl<'data> AccountHistory<'data> {
         Ok(Self { header, data })
     }
 
+    pub fn header(&self) -> AccountHistoryHeader {
+        *self.header
+    }
+
+    pub fn data(&self) -> Vec<u8> {
+        self.data.to_vec()
+    }
+
     /// Most recently modified index. Returns zero when there is no data.
     pub fn most_recent_index(&self) -> usize {
         self.header.num_updates as usize % self.header.capacity as usize
