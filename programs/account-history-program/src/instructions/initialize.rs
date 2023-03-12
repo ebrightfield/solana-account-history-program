@@ -29,7 +29,7 @@ pub struct InitializeAccountHistory<'info> {
 impl<'info> InitializeAccountHistory<'info> {
     pub fn process(&mut self, capacity: u32, min_slot_delay: u32, min_close_delay: u32, data_regions: Vec<(u32, u32)>, update_authority: Option<Pubkey>) -> Result<()> {
         let mut data = self.account_state_history.data.borrow_mut();
-        let mut act_history = AccountHistoryRaw::from_buffer(&mut data)?;
+        let mut act_history = AccountHistoryRaw::init_from_buffer(&mut data)?;
         act_history.header.associated_account = self.watched_account.key();
         act_history.header.close_authority = self.payer.key();
         act_history.header.update_authority = update_authority.unwrap_or(Pubkey::default());

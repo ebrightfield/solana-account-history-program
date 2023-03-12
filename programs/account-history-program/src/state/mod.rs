@@ -93,11 +93,10 @@ impl<'data> AccountHistoryRaw<'data> {
     /// with the given parameters.
     pub fn size_of(capacity: u32, data_locations: &[(u32, u32)]) -> usize {
         mem::size_of::<AccountHistoryHeader>()
-            + capacity as usize
-                * data_locations
+            + (mem::size_of::<Slot>() + data_locations
                     .iter()
                     .map(|(_, len)| *len as usize)
-                    .sum::<usize>()
+                    .sum::<usize>()) * capacity as usize
     }
 
     /// Constructor.
@@ -107,6 +106,14 @@ impl<'data> AccountHistoryRaw<'data> {
         if header.account_tag != ACCOUNT_HISTORY_TAG {
             return err!(AccountHistoryProgramError::InvalidAccountTag);
         }
+        Ok(Self { header, data })
+    }
+
+    // Used during initialization routine, sets account tag.
+    pub(crate) fn init_from_buffer(data: &'data mut [u8]) -> Result<Self> {
+        let (header, data) = data.split_at_mut(mem::size_of::<AccountHistoryHeader>());
+        let header = bytemuck::from_bytes_mut::<AccountHistoryHeader>(header);
+        header.account_tag = ACCOUNT_HISTORY_TAG;
         Ok(Self { header, data })
     }
 
@@ -323,6 +330,5 @@ mod tests {
         assert_eq!(price.0, 6);
         assert_eq!(price.1, 15);
         assert_eq!(price.2, 30);
-
     }
 }
