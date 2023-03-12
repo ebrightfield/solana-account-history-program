@@ -18,4 +18,10 @@ pub enum AccountHistoryProgramError {
     CannotCloseYet,
     #[msg("Cannot close account, close process not yet initiated")]
     CloseNotInitiated,
+    #[msg("Cannot deserialize account with the given capacity")]
+    InvalidCapacity,
+    #[msg("Cannot deserialize account with the given data type")]
+    InvalidDataType,
+    #[msg("Cannot deserialize account, invalid account tag")]
+    InvalidAccountTag,
 }

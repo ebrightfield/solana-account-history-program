@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 use crate::errors::AccountHistoryProgramError;
-use crate::state::AccountHistory;
+use crate::state::AccountHistoryRaw;
 
 /// Create a new historical data account, configured
 /// to watch a certain account.
@@ -16,7 +16,7 @@ pub struct InitializeAccountHistory<'info> {
     #[account(
         init,
         payer=payer,
-        space=AccountHistory::size_of(capacity, &data_regions),
+        space=AccountHistoryRaw::size_of(capacity, &data_regions),
         seeds=[seed.key().as_ref()],
         bump,
     )]
@@ -29,7 +29,7 @@ pub struct InitializeAccountHistory<'info> {
 impl<'info> InitializeAccountHistory<'info> {
     pub fn process(&mut self, capacity: u32, min_slot_delay: u32, min_close_delay: u32, data_regions: Vec<(u32, u32)>, update_authority: Option<Pubkey>) -> Result<()> {
         let mut data = self.account_state_history.data.borrow_mut();
-        let mut act_history = AccountHistory::from_buffer(&mut data)?;
+        let mut act_history = AccountHistoryRaw::from_buffer(&mut data)?;
         act_history.header.associated_account = self.watched_account.key();
         act_history.header.close_authority = self.payer.key();
         act_history.header.update_authority = update_authority.unwrap_or(Pubkey::default());

@@ -1,3 +1,5 @@
+pub mod interpreted;
+
 use crate::errors::AccountHistoryProgramError;
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::clock::Slot;
@@ -6,7 +8,20 @@ use std::mem;
 use std::num::NonZeroU64;
 use std::ops::Index;
 
-pub const ACCOUNT_HISTORY_TAG: u64 = 0;
+/// Equivalent to `SHA256(b"account:AccountHistory")[0..8]`
+pub const ACCOUNT_HISTORY_TAG: [u8; 8] = [242, 155, 38, 23, 9, 248, 25, 205];
+
+
+/// PDA generation just takes a random 32-byte seed.
+pub fn account_history_address(seed: [u8; 32]) -> (Pubkey, u8) {
+    Pubkey::find_program_address(
+        &[
+            seed.as_ref(),
+        ],
+        &crate::ID,
+    )
+}
+
 
 /// Contains metadata like the account's capacity, element size,
 /// number of updates, and locations of the account data being
@@ -14,7 +29,7 @@ pub const ACCOUNT_HISTORY_TAG: u64 = 0;
 #[derive(Debug, Clone, Copy, Pod, Zeroable)]
 #[repr(C)]
 pub struct AccountHistoryHeader {
-    account_tag: u64,
+    account_tag: [u8; 8],
     /// The target account. Only historical data from this account will be indexed.
     pub(crate) associated_account: Pubkey,
     /// Only this account can close the history account and reclaim its rent lamports.
@@ -66,24 +81,14 @@ impl Default for AccountHistoryHeader {
 /// Data account, stores a data and a header.
 #[derive(Debug)]
 #[repr(C)]
-pub struct AccountHistory<'data> {
+pub struct AccountHistoryRaw<'data> {
     /// Metadata about the account history
     pub(crate) header: &'data mut AccountHistoryHeader,
     /// Historical account state
     data: &'data mut [u8],
 }
 
-impl<'data> AccountHistory<'data> {
-    /// PDA generation just takes a random 32-byte seed.
-    pub fn get_program_address(seed: [u8; 32]) -> (Pubkey, u8) {
-        Pubkey::find_program_address(
-            &[
-                seed.as_ref(),
-            ],
-            &crate::ID,
-        )
-    }
-
+impl<'data> AccountHistoryRaw<'data> {
     /// Calculate the necessary size of an account history account
     /// with the given parameters.
     pub fn size_of(capacity: u32, data_locations: &[(u32, u32)]) -> usize {
@@ -99,6 +104,9 @@ impl<'data> AccountHistory<'data> {
     pub fn from_buffer(data: &'data mut [u8]) -> Result<Self> {
         let (header, data) = data.split_at_mut(mem::size_of::<AccountHistoryHeader>());
         let header = bytemuck::from_bytes_mut::<AccountHistoryHeader>(header);
+        if header.account_tag != ACCOUNT_HISTORY_TAG {
+            return err!(AccountHistoryProgramError::InvalidAccountTag);
+        }
         Ok(Self { header, data })
     }
 
@@ -181,13 +189,13 @@ impl<'data> AccountHistory<'data> {
 }
 
 /// Iterates from newest value to oldest.
-pub struct AccountHistoryIterator<'data> {
-    val: &'data AccountHistory<'data>,
+pub struct AccountHistoryRawIterator<'data> {
+    val: &'data AccountHistoryRaw<'data>,
     counter: usize,
     index: usize,
 }
 
-impl<'data> Index<usize> for AccountHistory<'data> {
+impl<'data> Index<usize> for AccountHistoryRaw<'data> {
     type Output = [u8];
     fn index(&self, index: usize) -> &Self::Output {
         let index = index % self.header.capacity as usize;
@@ -196,7 +204,7 @@ impl<'data> Index<usize> for AccountHistory<'data> {
     }
 }
 
-impl<'data> Iterator for AccountHistoryIterator<'data> {
+impl<'data> Iterator for AccountHistoryRawIterator<'data> {
     type Item = &'data [u8];
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -216,8 +224,8 @@ impl<'data> Iterator for AccountHistoryIterator<'data> {
     }
 }
 
-impl<'data> From<&'data AccountHistory<'data>> for AccountHistoryIterator<'data> {
-    fn from(value: &'data AccountHistory<'data>) -> Self {
+impl<'data> From<&'data AccountHistoryRaw<'data>> for AccountHistoryRawIterator<'data> {
+    fn from(value: &'data AccountHistoryRaw<'data>) -> Self {
         let start = value.most_recent_index() * value.header.data_element_size as usize;
         Self {
             val: &value,
@@ -227,8 +235,11 @@ impl<'data> From<&'data AccountHistory<'data>> for AccountHistoryIterator<'data>
     }
 }
 
+
+
 #[cfg(test)]
 mod tests {
+    use crate::state::interpreted::AccountHistory;
     use super::*;
 
     #[derive(Default, Debug, Clone, Copy, Pod, Zeroable)]
@@ -242,17 +253,28 @@ mod tests {
     fn iteration() {
         let key = Pubkey::new_unique();
         let mut header = AccountHistoryHeader {
+            account_tag: ACCOUNT_HISTORY_TAG,
             associated_account: key,
             capacity: CAPACITY as u32,
             data_element_size: ELEM_SIZE as u32,
+            min_slot_delay: 1,
             ..Default::default()
         };
+        // Pretend there are two target data regions: [0..8], [16..24]
         header.data_regions[1] = 8;
         header.data_regions[2] = 16;
         header.data_regions[3] = 8;
+        // Construct a mock raw history account
         let header_bytes = bytemuck::bytes_of(&header);
         let mut mock_data = [header_bytes, &[0u8; CAPACITY * ELEM_SIZE]].concat();
-        let mut vec = AccountHistory::from_buffer(&mut mock_data).unwrap();
+        let mut vec = AccountHistoryRaw::from_buffer(&mut mock_data).unwrap();
+        // Check that iterating an empty account does nothing
+        let mut j = 0u64;
+        for _ in AccountHistoryRawIterator::from(&vec) {
+            j += 1;
+        }
+        assert_eq!(j, 0);
+        // Push four elements
         let mock_act_data = [10u64.to_le_bytes(), [0u8; 8], 20u64.to_le_bytes(), [0u8; 8]].concat();
         vec.push(&mock_act_data, 1).unwrap();
         let mock_act_data = [11u64.to_le_bytes(), [0u8; 8], 22u64.to_le_bytes(), [0u8; 8]].concat();
@@ -267,46 +289,40 @@ mod tests {
         println!("{:?}", &vec.most_recent_index());
         println!("{:?}", &vec.data);
 
+        // Check that iterating a populated account history works
         let mut j = 13i64;
         assert_eq!(mem::size_of::<Price>(), 24);
         assert_eq!(mem::align_of::<Price>(), 8);
-        for i in AccountHistoryIterator::from(&vec) {
+        for i in AccountHistoryRawIterator::from(&vec) {
             println!("{:?}", &i);
             let price = bytemuck::from_bytes::<Price>(i);
             assert_eq!(price.1, j);
             assert_eq!(price.2, j as u64 * 2);
             j -= 1;
         }
-        // // Should not iterate through anything
-        // let vec = StackVecModulo::<u64, 5>::default();
-        // let mut j = 0u64;
-        // for _ in StackVecModuloIterator::from(&vec) {
-        //     j += 1;
-        // }
-        // assert_eq!(j, 0);
-    }
 
-    #[test]
-    fn push() {
-        // let mut vec = StackVecModulo::<u64, 5>::default();
-        // // len check
-        // assert_eq!(0, vec.len());
-        // assert_eq!(*vec.most_recent_entry(), 0);
-        // vec.push(0);
-        // assert_eq!(*vec.most_recent_entry(), 0);
-        // vec.push(2);
-        // assert_eq!(*vec.most_recent_entry(), 2);
-        // vec.push(4);
-        // vec.push(6);
-        // vec.push(8);
-        // assert_eq!(*vec.most_recent_entry(), 8);
-        // vec.push(10);
-        // assert_eq!(*vec.most_recent_entry(), 10);
-        // vec.push(12);
-        // // len check should now return 5
-        // assert_eq!(5, vec.len());
-        //
-        // // Should always return last pushed value
-        // assert_eq!(*vec.most_recent_entry(), 12);
+        // Push two more elements
+        let mock_act_data = [14u64.to_le_bytes(), [0u8; 8], 28u64.to_le_bytes(), [0u8; 8]].concat();
+        vec.push(&mock_act_data, 5).unwrap();
+        let mock_act_data = [15u64.to_le_bytes(), [0u8; 8], 30u64.to_le_bytes(), [0u8; 8]].concat();
+        vec.push(&mock_act_data, 6).unwrap();
+
+        // len check should now return 5
+        assert_eq!(5, vec.len());
+        // Should always return last pushed value
+        let entry = vec.most_recent_entry();
+        let price = bytemuck::from_bytes::<Price>(entry);
+        assert_eq!(price.0, 6);
+        assert_eq!(price.1, 15);
+        assert_eq!(price.2, 30);
+
+        // Test the interpreted data type as well
+        let history = AccountHistory::<Price>::from_buffer(&mut mock_data).unwrap();
+        assert_eq!(5, history.len());
+        let price = history.most_recent_entry();
+        assert_eq!(price.0, 6);
+        assert_eq!(price.1, 15);
+        assert_eq!(price.2, 30);
+
     }
 }

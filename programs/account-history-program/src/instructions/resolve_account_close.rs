@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 use crate::errors::AccountHistoryProgramError;
-use crate::state::AccountHistory;
+use crate::state::AccountHistoryRaw;
 
 #[derive(Accounts)]
 pub struct ResolveAccountClose<'info> {
@@ -18,7 +18,7 @@ pub struct ResolveAccountClose<'info> {
 impl<'info> ResolveAccountClose<'info> {
     pub fn process(&mut self) -> Result<()> {
         let mut data = self.account_state_history.data.borrow_mut();
-        let act_history = AccountHistory::from_buffer(&mut data)?;
+        let act_history = AccountHistoryRaw::from_buffer(&mut data)?;
         // Check close authority
         if self.close_authority.key() != act_history.header.close_authority {
             return err!(AccountHistoryProgramError::NotCloseAuthority);

@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 use crate::errors::AccountHistoryProgramError;
-use crate::state::AccountHistory;
+use crate::state::AccountHistoryRaw;
 
 
 /// Push a new blob of data onto a history account.
@@ -18,7 +18,7 @@ pub struct Update<'info> {
 impl<'info> Update<'info> {
     pub fn process(&mut self) -> Result<()> {
         let mut data = self.account_state_history.data.borrow_mut();
-        let mut oracle_history = AccountHistory::from_buffer(&mut data)?;
+        let mut oracle_history = AccountHistoryRaw::from_buffer(&mut data)?;
         // Check we're indexing the correct account
         if self.watched_account.key() != oracle_history.header.associated_account {
             return err!(AccountHistoryProgramError::NotCorrectAccount);
