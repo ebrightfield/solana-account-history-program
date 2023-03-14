@@ -18,19 +18,19 @@ pub struct Update<'info> {
 impl<'info> Update<'info> {
     pub fn process(&mut self) -> Result<()> {
         let mut data = self.account_state_history.data.borrow_mut();
-        let mut oracle_history = AccountHistoryRaw::from_buffer(&mut data)?;
+        let mut account_history = AccountHistoryRaw::from_buffer(&mut data)?;
         // Check we're indexing the correct account
-        if self.watched_account.key() != oracle_history.header.associated_account {
+        if self.watched_account.key() != account_history.header.associated_account {
             return err!(AccountHistoryProgramError::NotCorrectAccount);
         }
         // Check if the update authority matches (if update authority is not Default::default).
-        if oracle_history.header.update_authority != Pubkey::default()
-            && oracle_history.header.update_authority != self.signer.key() {
+        if account_history.header.update_authority != Pubkey::default()
+            && account_history.header.update_authority != self.signer.key() {
             return err!(AccountHistoryProgramError::NotUpdateAuthority);
         }
         // Try to push a new data snapshot
         let curr_slot = Clock::get()?.slot;
-        oracle_history.push(
+        account_history.push(
             &self.watched_account.data.borrow(),
             curr_slot,
         )?;

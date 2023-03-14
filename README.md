@@ -1,13 +1,13 @@
 ## Account History Program
 
 This program does one thing and does it well.
-It records historical Solana on-chain account state, on-chain on Solana.
+It records historical Solana account state, creating an on-chain record of previous account states.
 
 With this program, you can:
 - Create oracle price history feeds, from which common trading statistics can be derived.
 - Store an on-chain record of token balance changes.
 - Create on-chain logic that gates certain operations by historical presence of certain on-chain data.
-- Gate your program's mutation with update logic, so that the last N state updates are always visible on-chain and easily available.
+- Couple your program's account mutations with update logic, so that the last N state updates are always visible on-chain and easily available.
 
 ### How It Works
 You create an `AccountHistory` account, which is configured with:
@@ -18,6 +18,13 @@ You create an `AccountHistory` account, which is configured with:
 In either permissionless or permissioned fashion, an `AccountHistory` account can
 be updated with the latest snapshot of the target data on the target account,
 labeled with the slot number at the time of the data snapshot.
+
+### Testing
+```bash
+RUST_TEST_NOCAPTURE=1 cargo test --test token
+```
+The above command will execute a test that creates a new mint/token account,
+updates a history account with the token account's balance changes.
 
 ### Other Details
 - The slot number is prepended to every element of historical data, so the element size will always be >8 bytes long.

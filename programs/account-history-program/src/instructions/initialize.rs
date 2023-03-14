@@ -7,7 +7,7 @@ use crate::state::AccountHistoryRaw;
 #[derive(Accounts)]
 #[instruction(capacity: u32, data_regions: Vec<(u32, u32)>)]
 pub struct InitializeAccountHistory<'info> {
-    /// Funds rent for the new oracle account.
+    /// Funds rent for the new history account.
     #[account(mut)]
     payer: Signer<'info>,
     /// Signer and entropy seed for the account state history.
