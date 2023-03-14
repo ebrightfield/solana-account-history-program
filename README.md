@@ -20,19 +20,18 @@ be updated with the latest snapshot of the target data on the target account,
 labeled with the slot number at the time of the data snapshot.
 
 ### Testing
-```bash
-cargo make localnet
-```
-or
-```bash
-./localnet.sh
-```
-then in another terminal,
-```bash
-RUST_TEST_NOCAPTURE=1 cargo test --test token
-```
-The above command will execute a test that creates a new mint/token account,
-updates a history account with the token account's balance changes.
+To test the code, clone the repo on a host with a Solana CLI configuration pointing to a key file at `~/.config/solana/id.json`, and follow the steps below:
+
+1. `anchor build`.
+2. In one terminal, start a localnet cluster with `./localnet.sh` or `cargo make localnet`.
+3. In another terminal, execute `RUST_TEST_NOCAPTURE=1 cargo test --test token` or `cargo make test`.
+
+You should see many transaction IDs, and some debug prints.
+Overall, the test does the following:
+
+1. Creates a new mint and associated token account.
+2. Creates an `AccountHistory` pointing to that token account and the byte region that stores the token balance.
+3. Iterates over several mint operations, each time also updating the history account with the token account's balance changes.
 
 ### Other Details
 - The slot number is prepended to every element of historical data, so the element size will always be >8 bytes long.
