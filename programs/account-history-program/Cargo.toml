@@ -21,5 +21,5 @@ pyth-sdk-solana = "0.7.0"
 bytemuck = "1.13.1"
 
 [dev-dependencies]
-solana-program = "1.14.16"
+solana-program = "1.14"
 base64 = "0.21.0"
