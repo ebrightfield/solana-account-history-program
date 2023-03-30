@@ -103,7 +103,12 @@ fn token() {
 
     sleep(Duration::from_secs(1));
 
-    for _ in 0..5 {
+    let mut data = client.get_account_data(
+        &history_address,
+    ).unwrap();
+    let balance_history = AccountHistory::<HistoricalBalance>::from_buffer(&mut data).unwrap();
+    assert_eq!(balance_history.most_recent_index(), 1);
+    for i in 1..8 {
         let keypair = KeypairArg::parse().resolve(&matches, None).unwrap();
         let ix1 = mint_to(
             &Token::id(),
@@ -133,6 +138,11 @@ fn token() {
         println!("{}", signature);
 
         sleep(Duration::from_secs(1));
+        let mut data = client.get_account_data(
+            &history_address,
+        ).unwrap();
+        let balance_history = AccountHistory::<HistoricalBalance>::from_buffer(&mut data).unwrap();
+        assert_eq!(balance_history.most_recent_index(), (1 + i) % balance_history.capacity());
     }
 
     let mut data = client.get_account_data(
@@ -140,10 +150,10 @@ fn token() {
     ).unwrap();
     let balance_history = AccountHistory::<HistoricalBalance>::from_buffer(&mut data).unwrap();
     println!("{:#?}", balance_history);
-    assert_eq!(balance_history.most_recent_entry().balance, 5000);
+    assert_eq!(balance_history.most_recent_entry().balance, 7000);
     let iterator = AccountHistoryIterator::from(&balance_history);
+    println!("{:?}", &iterator);
     for (i, b) in iterator.enumerate() {
-        assert_eq!(b.balance as usize, 5000-(i*1000));
+        assert_eq!(b.balance as usize, 7000-(i*1000));
     }
-
 }

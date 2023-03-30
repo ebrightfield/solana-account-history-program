@@ -80,6 +80,7 @@ impl<'data, T: Pod> Index<usize> for AccountHistory<'data, T> {
 }
 
 /// Iterates from newest value to oldest.
+#[derive(Debug)]
 pub struct AccountHistoryIterator<'data, T: Pod> {
     inner: &'data AccountHistory<'data, T>,
     counter: usize,
@@ -108,7 +109,7 @@ impl<'data, T: Pod> Iterator for AccountHistoryIterator<'data, T> {
 
 impl<'data, T: Pod> From<&'data AccountHistory<'data, T>> for AccountHistoryIterator<'data, T> {
     fn from(value: &'data AccountHistory<'data, T>) -> Self {
-        let start = value.most_recent_index() * value.header.data_element_size as usize;
+        let start = value.most_recent_index();
         Self {
             inner: &value,
             counter: 0,
