@@ -15,7 +15,7 @@ use spl_token::instruction::{initialize_mint, mint_to};
 use account_history_client::config::KeypairArg;
 use account_history_client::{initialize_account_history, update};
 use account_history_program::state::account_history_address;
-use account_history_program::state::interpreted::{AccountHistory, AccountHistoryIterator};
+use account_history_program::state::interpreted::{AccountHistory, AccountHistoryIterator, AccountHistoryIteratorRev};
 use bytemuck::{Zeroable, Pod};
 use solana_sdk::program_pack::Pack;
 use solana_sdk::system_instruction::create_account;
@@ -155,5 +155,10 @@ fn token() {
     println!("{:?}", &iterator);
     for (i, b) in iterator.enumerate() {
         assert_eq!(b.balance as usize, 7000-(i*1000));
+    }
+    let iterator = AccountHistoryIteratorRev::from(&balance_history);
+    println!("{:?}", &iterator);
+    for (i, b) in iterator.enumerate() {
+        assert_eq!(b.balance as usize, 5000+(i*1000));
     }
 }

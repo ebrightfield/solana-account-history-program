@@ -1,6 +1,6 @@
 [package]
 name = "account-history-client"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 
 [[bin]]
@@ -8,7 +8,7 @@ name = "solana-act-history"
 path = "src/main.rs"
 
 [dependencies]
-anchor-lang = "0.26.0"
+anchor-lang = "0.27.0"
 account-history-program = { path = "../programs/account-history-program" }
 solana-client = "1.14"
 solana-sdk = "1.14"
@@ -22,4 +22,4 @@ solana-cli-config = "1.14"
 [dev-dependencies]
 spl-token = "3.5.0"
 spl-associated-token-account = "1.1.2"
-anchor-spl = "0.26.0"
+anchor-spl = "0.27.0"

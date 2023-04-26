@@ -117,3 +117,38 @@ impl<'data, T: Pod> From<&'data AccountHistory<'data, T>> for AccountHistoryIter
         }
     }
 }
+
+/// Iterates from oldest value to newest.
+#[derive(Debug)]
+pub struct AccountHistoryIteratorRev<'data, T: Pod> {
+    inner: &'data AccountHistory<'data, T>,
+    counter: usize,
+    index: usize,
+}
+
+impl<'data, T: Pod> Iterator for AccountHistoryIteratorRev<'data, T> {
+    type Item = &'data T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.counter < self.inner.len() {
+            let slice =
+                &self.inner.data[self.index];
+            self.counter += 1;
+            self.index = (self.index + 1) % self.inner.capacity();
+            Some(slice)
+        } else {
+            None
+        }
+    }
+}
+
+impl<'data, T: Pod> From<&'data AccountHistory<'data, T>> for AccountHistoryIteratorRev<'data, T> {
+    fn from(value: &'data AccountHistory<'data, T>) -> Self {
+        let start = (value.most_recent_index() + 1) % value.capacity();
+        Self {
+            inner: &value,
+            counter: 0,
+            index: start,
+        }
+    }
+}
